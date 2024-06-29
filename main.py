@@ -1,5 +1,6 @@
 import streamlit as st
 from pptx import Presentation
+from docx import Document
 from io import BytesIO
 import json
 import time
@@ -170,36 +171,79 @@ def save_pptx(ppt, original_file_name, language):
     output.seek(0)
     return output, f"{language}_translated_{original_file_name}"
 
-def main():
-    # Streamlit interface
-    st.set_page_config(page_title="Powerpoint Translator", page_icon=":memo:", layout='wide', initial_sidebar_state='collapsed')
+def extract_text_from_docx(doc):
+    texts = {}
+    full_text = []
+    for para_index, paragraph in enumerate(doc.paragraphs):
+        for run_index, run in enumerate(paragraph.runs):
+            path = f"paragraph_{para_index},run_{run_index}"
+            run_text = run.text
+            texts[path] = [run_text]
+            full_text.append(run_text)
+    return texts, "\n\n".join(full_text)
 
-    # Using columns to center the logo
-    col1, col2, col3 = st.columns([1,2,1])  # Adjust the ratio as needed to center the logo
+def apply_translated_text_to_docx(doc, translated_dict):
+    for para_index, paragraph in enumerate(doc.paragraphs):
+        for run_index, run in enumerate(paragraph.runs):
+            path = f"paragraph_{para_index},run_{run_index}"
+            if path in translated_dict:
+                translated_text = translated_dict[path][0]
+                run.text = translated_text
+                # Formatting is preserved because we modify the text of the run directly.
+
+def process_docx(file, target_language):
+    doc = Document(file)
+    text_dict, _ = extract_text_from_docx(doc)
+    translated_text_dict = translate_text(text_dict, target_language)
+    apply_translated_text_to_docx(doc, translated_text_dict)
+    return doc
+
+def save_docx(doc, original_file_name, language):
+    output = BytesIO()
+    doc.save(output)
+    output.seek(0)
+    return output, f"{language}_translated_{original_file_name}"
+
+def main():
+    st.set_page_config(page_title="Document Translator", page_icon=":memo:", layout='wide', initial_sidebar_state='collapsed')
+
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         logo_path = "bavista_logo.png" 
         st.image(logo_path, use_column_width=True) 
 
-    st.title("Agent Philip - PowerPoint Translator")
-    uploaded_file = st.file_uploader("**1. Upload your PowerPoint file**", type=["pptx"])
+    st.title("Agent Philip - Document Translator")
+    uploaded_file = st.file_uploader("**1. Upload your Document file**", type=["pptx", "docx"])
     language = st.selectbox("**2. Select Language you want to translate to**", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
 
     if uploaded_file and language:
+        file_type = uploaded_file.name.split('.')[-1]
         if st.button(f"Translate to **{language}**", use_container_width=True, type="primary"):
             with st.spinner("🙇🏻‍♀️ Working on this task, please give it a moment..."):
-                ppt = Presentation(uploaded_file)
-                total_slides = len(ppt.slides)
-                progress_bar = st.progress(0, text="🤔 Analyzing the your slides")
-                translated_ppt = process_pptx(uploaded_file, language, progress_bar, total_slides)
-                progress_bar.progress(100)
-                st.balloons()
-                translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name, language)
-                st.download_button(label="💾 Download Translated PowerPoint",
-                                   data=translated_ppt_bytes,
-                                   file_name=new_file_name,
-                                   mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                   use_container_width=True,
-                                   )
+                if file_type == 'pptx':
+                    ppt = Presentation(uploaded_file)
+                    total_slides = len(ppt.slides)
+                    progress_bar = st.progress(0, text="🤔 Analyzing your slides")
+                    translated_ppt = process_pptx(uploaded_file, language, progress_bar, total_slides)
+                    progress_bar.progress(100, "All done ✅")
+                    st.balloons()
+                    translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name, language)
+                    st.download_button(label="💾 Download Translated PowerPoint",
+                                       data=translated_ppt_bytes,
+                                       file_name=new_file_name,
+                                       mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                       use_container_width=True)
+                elif file_type == 'docx':
+                    doc = Document(uploaded_file)
+                    progress_bar = st.progress(50, text="🤔 Analyzing your slides")
+                    translated_doc = process_docx(uploaded_file, language)
+                    progress_bar.progress(100, "All done ✅")
+                    translated_doc_bytes, new_file_name = save_docx(translated_doc, uploaded_file.name, language)
+                    st.download_button(label="💾 Download Translated Document",
+                                       data=translated_doc_bytes,
+                                       file_name=new_file_name,
+                                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                       use_container_width=True)
 
 if __name__ == "__main__":
     main()

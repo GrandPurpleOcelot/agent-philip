@@ -2,6 +2,7 @@ import streamlit as st
 from pptx import Presentation
 from io import BytesIO
 import json
+import time
 from openai import AzureOpenAI
 
 # Set up your OpenAI API key
@@ -102,6 +103,10 @@ def apply_translated_text_to_slide(slide, translated_dict):
     apply_to_shapes(slide.shapes, f"{slide.slide_id}")
 
 def translate_text(text_dict, target_language):
+    max_retries = 2
+    timeout_seconds = 120
+    attempt = 0
+
     # system prompt:
     prompt = f"""
         You are a professional language translator.\n
@@ -113,27 +118,40 @@ def translate_text(text_dict, target_language):
     converted_dict = json.dumps({str(k): v for k, v in text_dict.items()})
     print("------------------- Input text dictionary:\n", converted_dict)
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": prompt},
-                      {"role": "user", "content": converted_dict}],
-            temperature=0.5,
-            max_tokens=4096,
-        )
-        print("------------------- Raw response from API:\n", response) 
+    while attempt < max_retries:
+        try:
+            start_time = time.time()
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                response_format={"type": "json_object"},
+                messages=[{"role": "system", "content": prompt},
+                          {"role": "user", "content": converted_dict}],
+                temperature=0.5,
+                max_tokens=4000,
+            )
+            elapsed_time = time.time() - start_time
 
-        # Assuming the response format matches the input dictionary order
-        translated_dict = json.loads(response.choices[0].message.content)
-        return translated_dict
-    except json.JSONDecodeError as e:
-        print("Failed to decode JSON from response:", response)
-        st.error(f"JSON decoding error: {str(e)}")
-        return text_dict
-    except Exception as e:
-        st.error(f"Error in translation: {str(e)}")
-        return text_dict
+            if elapsed_time > timeout_seconds:
+                raise TimeoutError("API call exceeded the time limit of 120 seconds.")
+
+            print("------------------- Raw response from API:\n", response) 
+
+            # Assuming the response format matches the input dictionary order
+            translated_dict = json.loads(response.choices[0].message.content)
+            return translated_dict
+
+        except (json.JSONDecodeError, TimeoutError) as e:
+            print("Attempt", attempt + 1, "failed:", str(e))
+            attempt += 1
+            if attempt == max_retries:
+                st.error(f"Translation failed after {max_retries} attempts.")
+                return text_dict
+        except Exception as e:
+            st.error(f"Error in translation: {str(e)}")
+            return text_dict
+        time.sleep(2)  # wait 2 seconds before retrying (if needed)
+
+    return text_dict
 
 def process_pptx(file, target_language, progress_bar, total_slides):
     ppt = Presentation(file)
@@ -163,11 +181,11 @@ def main():
         st.image(logo_path, use_column_width=True) 
 
     st.title("Agent Philip - PowerPoint Translator")
-    uploaded_file = st.file_uploader("Upload your PowerPoint file", type=["pptx"])
-    language = st.selectbox("Select Language", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
+    uploaded_file = st.file_uploader("**1. Upload your PowerPoint file**", type=["pptx"])
+    language = st.selectbox("**2. Select Language you want to translate to**", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
 
     if uploaded_file and language:
-        if st.button(f"Translate to **{language}**", use_container_width=True):
+        if st.button(f"Translate to **{language}**", use_container_width=True, type="primary"):
             with st.spinner("🙇🏻‍♀️ Working on this task, please give it a moment..."):
                 ppt = Presentation(uploaded_file)
                 total_slides = len(ppt.slides)
@@ -176,11 +194,11 @@ def main():
                 progress_bar.progress(100)
                 st.balloons()
                 translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name, language)
-                st.download_button(label="Download Translated PowerPoint",
+                st.download_button(label="💾 Download Translated PowerPoint",
                                    data=translated_ppt_bytes,
                                    file_name=new_file_name,
                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                   use_container_width=True,type="primary"
+                                   use_container_width=True,
                                    )
 
 if __name__ == "__main__":
