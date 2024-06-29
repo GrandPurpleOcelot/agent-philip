@@ -39,29 +39,7 @@ def extract_all_text_from_ppt(file):
     full_context = "\n\n".join(full_text)
     return texts, full_context
 
-def extract_text_from_slide(slide):
-    texts = {}
-    full_text = []
-
-    def extract_text_from_shapes(shapes, slide_index, path, texts, full_text):
-        for index, shape in enumerate(shapes):
-            current_path = f"{path},{index}"
-            if hasattr(shape, "text_frame") and shape.text_frame:
-                shape_text = []
-                for paragraph in shape.text_frame.paragraphs:
-                    paragraph_text = ''.join(run.text for run in paragraph.runs)
-                    shape_text.append(paragraph_text)
-                    full_text.append(paragraph_text)
-                if shape_text:
-                    texts[current_path] = shape_text
-            elif hasattr(shape, "shapes"):  # This is a group shape.
-                extract_text_from_shapes(shape.shapes, slide_index, current_path, texts, full_text)
-
-    extract_text_from_shapes(slide.shapes, slide.slide_id, f"{slide.slide_id}", texts, full_text)
-    full_context = "\n\n".join(full_text)
-    return texts, full_context
-
-def apply_translated_text_to_slide(slide, translated_dict):
+def apply_translated_text(ppt, translated_dict):
     def set_text_to_shape(shape, translated_paragraphs):
         if hasattr(shape, "text_frame"):
             for paragraph_idx, paragraph in enumerate(shape.text_frame.paragraphs):
@@ -94,12 +72,13 @@ def apply_translated_text_to_slide(slide, translated_dict):
     def apply_to_shapes(shapes, path):
         for index, shape in enumerate(shapes):
             current_path = f"{path},{index}"
-            if current_path in translated_dict:  # Corrected from 'current_data' to 'current_path'
+            if current_path in translated_dict:
                 set_text_to_shape(shape, translated_dict[current_path])
             elif hasattr(shape, "shapes"):
-                apply_to_shapes(shape.shapes, current_path)  # Corrected recursive call
+                apply_to_shapes(shape.shapes, current_path)
 
-    apply_to_shapes(slide.shapes, f"{slide.slide_id}")
+    for i, slide in enumerate(ppt.slides):
+        apply_to_shapes(slide.shapes, f"{i}")
 
 def translate_text(text_dict, target_language):
     # system prompt:
@@ -135,22 +114,18 @@ def translate_text(text_dict, target_language):
         st.error(f"Error in translation: {str(e)}")
         return text_dict
 
-def process_pptx(file, target_language, progress_bar, total_slides):
+def process_pptx(file, target_language, full_context):
     ppt = Presentation(file)
-    for i, slide in enumerate(ppt.slides):
-        slide_text_dict, _ = extract_text_from_slide(slide)
-        translated_slide_dict = translate_text(slide_text_dict, target_language)
-        apply_translated_text_to_slide(slide, translated_slide_dict)
-        # Update progress bar based on the slide index, value between 0.0 and 1.0
-        current_progress = (i + 1) / total_slides
-        progress_bar.progress(current_progress, text= f"Processing slide {i}/{total_slides}")
+    text_dict, _ = extract_all_text_from_ppt(file)
+    translated_dict = translate_text(text_dict, target_language)
+    apply_translated_text(ppt, translated_dict)
     return ppt
 
-def save_pptx(ppt, original_file_name, language):
+def save_pptx(ppt, original_file_name):
     output = BytesIO()
     ppt.save(output)
     output.seek(0)
-    return output, f"{language}_translated_{original_file_name}"
+    return output, f"translated_{original_file_name}"
 
 def main():
     # Streamlit interface
@@ -164,18 +139,20 @@ def main():
 
     st.title("Agent Philip - PowerPoint Translator")
     uploaded_file = st.file_uploader("Upload your PowerPoint file", type=["pptx"])
-    language = st.selectbox("Select Language", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
+    language = st.selectbox("Select Language", ['Vietnamese', 'Japanese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
 
     if uploaded_file and language:
         if st.button(f"Translate to **{language}**", use_container_width=True):
+            progress_bar = st.progress(0)
             with st.spinner("🙇🏻‍♀️ Working on this task, please give it a moment..."):
-                ppt = Presentation(uploaded_file)
-                total_slides = len(ppt.slides)
-                progress_bar = st.progress(0, text="🤔 Analyzing the your slides")
-                translated_ppt = process_pptx(uploaded_file, language, progress_bar, total_slides)
+                progress_bar.progress(10, text="Analyzing the slides...")
+                text_dict, full_context = extract_all_text_from_ppt(uploaded_file)
+                progress_bar.progress(50, text=f"✍️ Translating to {language}...")
+                translated_ppt = process_pptx(uploaded_file, language, full_context)
+                progress_bar.progress(70, text="Exporting...")
+                translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name)
                 progress_bar.progress(100)
                 st.balloons()
-                translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name, language)
                 st.download_button(label="Download Translated PowerPoint",
                                    data=translated_ppt_bytes,
                                    file_name=new_file_name,
