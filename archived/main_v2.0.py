@@ -214,7 +214,15 @@ def main():
 
     st.title("Agent Philip - Document Translator")
     uploaded_file = st.file_uploader("**1. Upload your Document file**", type=["pptx", "docx"])
-    language = st.selectbox("**2. Select Language you want to translate to**", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic'])
+    # Language selection or custom input
+    language_option = st.radio("**2. Choose an option for language selection:**",
+                               ('Select from list', 'Enter custom language'))
+
+    if language_option == 'Select from list':
+        language = st.selectbox("Select Language you want to translate to",
+                                ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic', 'Spanish'])
+    else:
+        language = st.text_input("Enter the language you want to translate to")
 
     if uploaded_file and language:
         file_type = uploaded_file.name.split('.')[-1]
@@ -238,6 +246,7 @@ def main():
                     progress_bar = st.progress(50, text="🤔 Analyzing your slides")
                     translated_doc = process_docx(uploaded_file, language)
                     progress_bar.progress(100, "All done ✅")
+                    st.balloons()
                     translated_doc_bytes, new_file_name = save_docx(translated_doc, uploaded_file.name, language)
                     st.download_button(label="💾 Download Translated Document",
                                        data=translated_doc_bytes,

@@ -2,3 +2,4 @@ openai
 streamlit
 python-pptx
 python-docx
+openpyxl

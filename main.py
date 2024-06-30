@@ -1,10 +1,12 @@
 import streamlit as st
 from pptx import Presentation
 from docx import Document
+from openpyxl import load_workbook
 from io import BytesIO
 import json
 import time
 from openai import AzureOpenAI
+import openpyxl
 
 # Set up your OpenAI API key
 api_key = st.secrets["AZURE_OPENAI_API_KEY"]
@@ -112,7 +114,7 @@ def translate_text(text_dict, target_language):
     prompt = f"""
         You are a professional language translator.\n
         Return a json with format similar to user's provided dictionary\n
-        Translate the text to {target_language}"""
+        Translate the text to {target_language}."""
     print("------------------- System Prompt:\n", prompt)
 
     # user prompt:
@@ -204,6 +206,65 @@ def save_docx(doc, original_file_name, language):
     output.seek(0)
     return output, f"{language}_translated_{original_file_name}"
 
+# Function to Extract Text from Excel
+def extract_text_from_xlsx(wb):
+    sheet_texts = {}
+    full_texts = {}
+
+    for sheet_name in wb.sheetnames:
+        sheet = wb[sheet_name]
+        texts = {}
+        full_text = []
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.value and isinstance(cell.value, str):
+                    path = f"row_{cell.row},col_{cell.column}"
+                    texts[path] = [cell.value]
+                    full_text.append(cell.value)
+        sheet_texts[sheet_name] = texts
+        full_texts[sheet_name] = "\n\n".join(full_text)
+
+    return sheet_texts, full_texts
+
+# Function to Apply Translated Text Back to Excel
+def apply_translated_text_to_xlsx(wb, translated_dict):
+    for sheet_name in wb.sheetnames:
+        sheet = wb[sheet_name]
+        if sheet_name in translated_dict:
+            translated_sheet_dict = translated_dict[sheet_name]
+            for row in sheet.iter_rows():
+                for cell in row:
+                    path = f"row_{cell.row},col_{cell.column}"
+                    if path in translated_sheet_dict:
+                        cell.value = translated_sheet_dict[path][0]
+
+# Function to Extract and Translate Text from Excel
+def process_xlsx(uploaded_file, target_language, progress_bar):
+    file_stream = BytesIO(uploaded_file.getvalue())
+    wb = load_workbook(file_stream, data_only=True)
+    sheet_texts, _ = extract_text_from_xlsx(wb)
+    total_sheets = len(wb.sheetnames)
+    sheet_counter = 0
+
+    for sheet_name, texts in sheet_texts.items():
+        if texts:
+            translated_sheet_dict = translate_text(texts, target_language)
+            if translated_sheet_dict:
+                apply_translated_text_to_xlsx(wb, {sheet_name: translated_sheet_dict})
+        sheet_counter += 1
+        # Update progress bar based on the number of processed sheets
+        progress_bar.progress(sheet_counter / total_sheets, text=f"Processing sheet {sheet_counter}/{total_sheets}")
+
+    return wb
+
+# Function to save Excel with translations
+def save_xlsx(wb, original_file_name, language):
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output, f"{language}_translated_{original_file_name}"
+
+# Main function
 def main():
     st.set_page_config(page_title="Document Translator", page_icon=":memo:", layout='wide', initial_sidebar_state='collapsed')
 
@@ -213,14 +274,11 @@ def main():
         st.image(logo_path, use_column_width=True) 
 
     st.title("Agent Philip - Document Translator")
-    uploaded_file = st.file_uploader("**1. Upload your Document file**", type=["pptx", "docx"])
-    # Language selection or custom input
-    language_option = st.radio("**2. Choose an option for language selection:**",
-                               ('Select from list', 'Enter custom language'))
+    uploaded_file = st.file_uploader("**1. Upload your Document file**", type=["pptx", "docx", "xlsx"])
 
+    language_option = st.radio("**2. Choose an option for language selection:**", ('Select from list', 'Enter custom language'))
     if language_option == 'Select from list':
-        language = st.selectbox("Select Language you want to translate to",
-                                ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic', 'Spanish'])
+        language = st.selectbox("Select Language you want to translate to", ['Japanese', 'Vietnamese', 'English', 'Mandarin', 'Hindi', 'Arabic', 'Spanish'])
     else:
         language = st.text_input("Enter the language you want to translate to")
 
@@ -236,11 +294,7 @@ def main():
                     progress_bar.progress(100, "All done ✅")
                     st.balloons()
                     translated_ppt_bytes, new_file_name = save_pptx(translated_ppt, uploaded_file.name, language)
-                    st.download_button(label="💾 Download Translated PowerPoint",
-                                       data=translated_ppt_bytes,
-                                       file_name=new_file_name,
-                                       mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                       use_container_width=True)
+                    st.download_button(label="💾 Download Translated PowerPoint", data=translated_ppt_bytes, file_name=new_file_name, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", use_container_width=True)
                 elif file_type == 'docx':
                     doc = Document(uploaded_file)
                     progress_bar = st.progress(50, text="🤔 Analyzing your slides")
@@ -248,11 +302,14 @@ def main():
                     progress_bar.progress(100, "All done ✅")
                     st.balloons()
                     translated_doc_bytes, new_file_name = save_docx(translated_doc, uploaded_file.name, language)
-                    st.download_button(label="💾 Download Translated Document",
-                                       data=translated_doc_bytes,
-                                       file_name=new_file_name,
-                                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                       use_container_width=True)
+                    st.download_button(label="💾 Download Translated Document", data=translated_doc_bytes, file_name=new_file_name, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+                elif file_type == 'xlsx':
+                    progress_bar = st.progress(0, text="🤔 Analyzing your sheets")
+                    translated_wb = process_xlsx(uploaded_file, language, progress_bar)
+                    progress_bar.progress(100, "All done ✅")  # Ensure the progress bar reaches 100% when done
+                    st.balloons()
+                    translated_xlsx_bytes, new_file_name = save_xlsx(translated_wb, uploaded_file.name, language)
+                    st.download_button(label="💾 Download Translated Excel", data=translated_xlsx_bytes, file_name=new_file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 if __name__ == "__main__":
     main()
