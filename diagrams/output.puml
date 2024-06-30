@@ -1,0 +1,19 @@
+@startuml
+|User|
+start
+:Clicks "Register";
+|System|
+:Displays registration form;
+|User|
+:Enters details (name, email, password, etc.);
+:Submits the form;
+|System|
+:Validates the information;
+:Send verification email;
+|User|
+:Clicks verification link in the email;
+|System|
+:Confirms email verification;
+:Completes registration;
+stop
+@enduml

@@ -3,3 +3,4 @@ streamlit
 python-pptx
 python-docx
 openpyxl
+watchdog
