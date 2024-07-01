@@ -8,6 +8,10 @@ import tempfile
 from data import diagrams
 import glob
 import pandas as pd
+from pathlib import Path
+
+# Path to the PlantUML .jar file
+plantuml_jar_path = Path(__file__).parent.parent / 'plantuml.jar'
 
 # import the list of supported diagrams
 df_diagrams = pd.DataFrame(diagrams)
@@ -15,8 +19,23 @@ df_diagrams = pd.DataFrame(diagrams)
 # Directory for storing output diagrams
 output_dir = Path('./diagrams')
 
-# Path to the PlantUML .jar file
-plantuml_jar_path = './plantuml.jar'
+def check_plantuml_jar(jar_path):
+    jar_path = Path(jar_path)
+    if not jar_path.is_file():
+        st.error(f"PlantUML JAR file not found at {jar_path}. Please ensure the file exists and the path is correct.")
+        st.stop()
+    try:
+        subprocess.run(['java', '-jar', str(jar_path), '-version'], check=True, capture_output=True, text=True)
+        print("PlantUML JAR file loaded successfully.")
+    except subprocess.CalledProcessError as e:
+        st.error(f"Error running PlantUML JAR: {e}")
+        st.error(f"Error output: {e.stderr}")
+        st.stop()
+    except Exception as e:
+        st.error(f"Unexpected error when checking PlantUML JAR: {e}")
+        st.stop()
+
+check_plantuml_jar(plantuml_jar_path)
 
 # Set up your OpenAI API key
 api_key = st.secrets["AZURE_OPENAI_API_KEY"]
@@ -58,8 +77,8 @@ def nl_to_plantuml(nl_instruction, diagram_type, include_title, use_aws_orange_t
 
     try:
         # Use the OpenAI API to generate a response
-        print("Instruction message:\n", instruction_message)
-        print("NL Instruction:\n", nl_instruction)
+        print("--------------- Instruction message:\n", instruction_message)
+        print("--------------- NL Instruction:\n", nl_instruction)
 
         openai_response = client.chat.completions.create(
             model="gpt-4o",
@@ -71,6 +90,7 @@ def nl_to_plantuml(nl_instruction, diagram_type, include_title, use_aws_orange_t
             stream=False,
         )
         plantuml_code = openai_response.choices[0].message.content
+        print(f"--------------- LLM returns PlantUML code:\n {plantuml_code}")
         return plantuml_code
     except Exception as e:
         st.error(f"An error occurred with the OpenAI API: {e}")
@@ -292,6 +312,3 @@ else:
                     body=st.session_state['plantuml_code'],
                     line_numbers=True
                 )
-            
-
-
