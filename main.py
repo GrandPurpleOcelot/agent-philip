@@ -16,7 +16,7 @@ def create_google_oauth_client():
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
         scope=['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
-        redirect_uri="http://localhost:8508/home",
+        redirect_uri="https://bavista.streamlit.app/home",
         token_endpoint='https://oauth2.googleapis.com/token'
     )
 
