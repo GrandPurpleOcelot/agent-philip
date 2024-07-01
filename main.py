@@ -25,7 +25,7 @@ col1, col2, col3 = st.columns(3)
 
 # Add a button to each column
 with col1:
-    if st.button("📈 **Digram Generation**", use_container_width=True):
+    if st.button("📈 **Digram Generation** $(Alpha)$", use_container_width=True):
         st.switch_page("pages/diagram_agent.py")
 
 with col2:
@@ -33,5 +33,5 @@ with col2:
         st.switch_page("pages/translator_agent.py")
 
 with col3:
-    if st.button("**📝 Minutes to Requirements**", use_container_width=True):
+    if st.button("**📝 Minutes to Requirements** $(Beta)$", use_container_width=True):
         st.switch_page("pages/requirements_agent.py")
