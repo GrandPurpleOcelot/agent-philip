@@ -1,9 +1,14 @@
 import streamlit as st
 from authlib.integrations.requests_client import OAuth2Session
+import logging
+
+# Set up basic logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Constants for Google OAuth
 GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
-GOOGLE_CLIENT_SECRET =  st.secrets["GOOGLE_CLIENT_SECRET"]
+GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
 
 def create_google_oauth_client():
     return OAuth2Session(
@@ -17,7 +22,9 @@ def create_google_oauth_client():
 def load_google_userinfo(token):
     client = create_google_oauth_client()
     client.token = token
-    return client.get('https://openidconnect.googleapis.com/v1/userinfo').json()
+    userinfo_response = client.get('https://openidconnect.googleapis.com/v1/userinfo')
+    logger.debug(f"Userinfo Response: {userinfo_response.json()}")
+    return userinfo_response.json()
 
 # Initialize session state for auth token
 if 'auth_token' not in st.session_state:
@@ -31,9 +38,13 @@ if st.session_state['auth_token'] is None:
     auth_url, state = oauth_client.create_authorization_url(authorization_endpoint, prompt="consent")         
     if 'code' in st.query_params:
         code = st.query_params['code'][0]
-        token = oauth_client.fetch_token(code=code)
-        st.session_state['auth_token'] = token
-        st.experimental_rerun()
+        try:
+            token = oauth_client.fetch_token(code=code)
+            st.session_state['auth_token'] = token
+            st.experimental_rerun()
+        except Exception as e:
+            logger.error(f"Error fetching token: {e}")
+            st.error("Failed to authenticate. Please try again.")
     else:
         st.markdown(f"Please log in to continue: [Login with Google]({auth_url})")
 else:
