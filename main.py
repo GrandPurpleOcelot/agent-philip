@@ -1,6 +1,7 @@
 import streamlit as st
 from authlib.integrations.requests_client import OAuth2Session
 import logging
+import urllib.parse
 
 # Set up basic logging
 logging.basicConfig(level=logging.DEBUG)
@@ -37,14 +38,18 @@ if st.session_state['auth_token'] is None:
     authorization_endpoint = "https://accounts.google.com/o/oauth2/auth"
     auth_url, state = oauth_client.create_authorization_url(authorization_endpoint, prompt="consent")         
     if 'code' in st.query_params:
-        code = st.query_params['code'][0]
+        # Decode and log the authorization code
+        code = urllib.parse.unquote(st.query_params['code'][0])
+        logger.debug(f"Decoded Authorization Code: {code}")
+
         try:
             token = oauth_client.fetch_token(code=code)
             st.session_state['auth_token'] = token
             st.experimental_rerun()
         except Exception as e:
-            logger.error(f"Error fetching token: {e}")
-            st.error("Failed to authenticate. Please try again.")
+            error_response = e.response.json() if e.response else 'No response'
+            logger.error(f"Error fetching token: {e}, Response: {error_response}")
+            st.error(f"Failed to authenticate. Please try again. Error: {error_response}")
     else:
         st.markdown(f"Please log in to continue: [Login with Google]({auth_url})")
 else:
