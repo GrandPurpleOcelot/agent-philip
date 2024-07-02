@@ -1,5 +1,5 @@
 import streamlit as st
-from authlib.integrations.requests_client import OAuth2Session
+from authlib.integrations.requests_client import OAuth2Session, OAuthError
 import logging
 import urllib.parse
 
@@ -16,7 +16,7 @@ def create_google_oauth_client():
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
         scope=['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
-        redirect_uri="https://bavista.streamlit.app/home",
+        redirect_uri="https://bavista.streamlit.app/oauth2callback",  # Updated redirect URI
         token_endpoint='https://oauth2.googleapis.com/token'
     )
 
@@ -31,26 +31,32 @@ def load_google_userinfo(token):
 if 'auth_token' not in st.session_state:
     st.session_state['auth_token'] = None
 
+def handle_auth_callback():
+    query_params = st.query_params
+    code = query_params.get("code", [None])[0]
+    if code:
+        try:
+            oauth_client = create_google_oauth_client()
+            token = oauth_client.fetch_token(code=code)
+            st.session_state['auth_token'] = token
+            return True
+        except OAuthError as e:
+            logger.error(f"OAuth Error fetching token: {e.error}")
+            st.error(f"Failed to authenticate. Please try again. Error: {e.error}")
+            return False
+        except Exception as e:
+            logger.error(f"General Error fetching token: {str(e)}")
+            st.error("Failed to authenticate. Please try again.")
+            return False
+    return False
+
 st.set_page_config(page_title="BaVista", page_icon=":memo:", layout='wide', initial_sidebar_state='collapsed')
 
 if st.session_state['auth_token'] is None:
-    oauth_client = create_google_oauth_client()
-    authorization_endpoint = "https://accounts.google.com/o/oauth2/auth"
-    auth_url, state = oauth_client.create_authorization_url(authorization_endpoint, prompt="consent")         
-    if 'code' in st.query_params:
-        code = urllib.parse.unquote(st.query_params['code'][0])
-        try:
-            token = oauth_client.fetch_token(code=code)
-            st.session_state['auth_token'] = token
-            st.experimental_rerun()
-        except OAuthError as e:  # Catch specific OAuth errors
-            error_response = e.error
-            logger.error(f"OAuth Error fetching token: {e.error}")
-            st.error(f"Failed to authenticate. Please try again. Error: {error_response}")
-        except Exception as e:  # Catch any other exceptions
-            logger.error(f"General Error fetching token: {str(e)}")
-            st.error("Failed to authenticate. Please try again.")
-    else:
+    if not handle_auth_callback():
+        oauth_client = create_google_oauth_client()
+        authorization_endpoint = "https://accounts.google.com/o/oauth2/auth"
+        auth_url, state = oauth_client.create_authorization_url(authorization_endpoint, prompt="consent")
         col1, col2, col3 = st.columns([2,1,2])  # Adjust the ratios as needed for better alignment
         with col2:
             logo_path = "xvista_logo.png"
