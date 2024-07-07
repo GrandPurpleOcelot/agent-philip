@@ -1,19 +1,24 @@
 @startuml
-|User|
-start
-:Clicks "Register";
-|System|
-:Displays registration form;
-|User|
-:Enters details (name, email, password, etc.);
-:Submits the form;
-|System|
-:Validates the information;
-:Send verification email;
-|User|
-:Clicks verification link in the email;
-|System|
-:Confirms email verification;
-:Completes registration;
-stop
+actor User
+
+node "User's System" {
+  [User Application]
+}
+
+node "OpenAI Infrastructure" {
+  [API Endpoint]
+  [Processing Server]
+  [Model (e.g., GPT-3)]
+  [OpenAI Dashboard]
+}
+
+User -- [User Application]
+[User Application] --> [API Endpoint] : HTTP Request (API Key, Model, Input Data)
+[API Endpoint] --> [Processing Server] : Forward Request
+[Processing Server] --> [Model (e.g., GPT-3)] : Process Input Data
+[Model (e.g., GPT-3)] --> [Processing Server] : Generated Response
+[Processing Server] --> [API Endpoint] : Format Response
+[API Endpoint] --> [User Application] : HTTP Response (Generated Text, Metadata)
+[User Application] --> User : Integrate Response
+User --> [OpenAI Dashboard] : Monitor Usage and Manage API
 @enduml

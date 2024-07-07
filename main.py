@@ -3,10 +3,6 @@ from authlib.integrations.requests_client import OAuth2Session, OAuthError
 import logging
 import urllib.parse
 
-# Set up basic logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 # Constants for Google OAuth
 GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
@@ -24,7 +20,6 @@ def load_google_userinfo(token):
     client = create_google_oauth_client()
     client.token = token
     userinfo_response = client.get('https://openidconnect.googleapis.com/v1/userinfo')
-    logger.debug(f"Userinfo Response: {userinfo_response.json()}")
     return userinfo_response.json()
 
 # Initialize session state for auth token
@@ -41,11 +36,9 @@ def handle_auth_callback():
             st.session_state['auth_token'] = token
             return True
         except OAuthError as e:
-            logger.error(f"OAuth Error fetching token: {e.error}")
             st.error(f"Failed to authenticate. Please try again. Error: {e.error}")
             return False
         except Exception as e:
-            logger.error(f"General Error fetching token: {str(e)}")
             st.error("Failed to authenticate. Please try again.")
             return False
     return False
