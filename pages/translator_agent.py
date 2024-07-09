@@ -176,22 +176,43 @@ def save_pptx(ppt, original_file_name, language):
 def extract_text_from_docx(doc):
     texts = {}
     full_text = []
+    # Extract text from paragraphs
     for para_index, paragraph in enumerate(doc.paragraphs):
         for run_index, run in enumerate(paragraph.runs):
             path = f"paragraph_{para_index},run_{run_index}"
             run_text = run.text
             texts[path] = [run_text]
             full_text.append(run_text)
+    
+    # Extract text from tables
+    for table_index, table in enumerate(doc.tables):
+        for row_index, row in enumerate(table.rows):
+            for cell_index, cell in enumerate(row.cells):
+                path = f"table_{table_index},row_{row_index},cell_{cell_index}"
+                cell_text = cell.text
+                if cell_text:
+                    texts[path] = [cell_text]
+                    full_text.append(cell_text)
+    
     return texts, "\n\n".join(full_text)
 
+
 def apply_translated_text_to_docx(doc, translated_dict):
+    # Apply translated text to paragraphs
     for para_index, paragraph in enumerate(doc.paragraphs):
         for run_index, run in enumerate(paragraph.runs):
             path = f"paragraph_{para_index},run_{run_index}"
             if path in translated_dict:
                 translated_text = translated_dict[path][0]
                 run.text = translated_text
-                # Formatting is preserved because we modify the text of the run directly.
+
+    # Apply translated text to tables
+    for table_index, table in enumerate(doc.tables):
+        for row_index, row in enumerate(table.rows):
+            for cell_index, cell in enumerate(row.cells):
+                path = f"table_{table_index},row_{row_index},cell_{cell_index}"
+                if path in translated_dict:
+                    cell.text = translated_dict[path][0]
 
 def process_docx(file, target_language):
     doc = Document(file)
@@ -297,7 +318,7 @@ def main():
                     st.download_button(label="💾 Download Translated PowerPoint", data=translated_ppt_bytes, file_name=new_file_name, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", use_container_width=True)
                 elif file_type == 'docx':
                     doc = Document(uploaded_file)
-                    progress_bar = st.progress(50, text="🤔 Analyzing your slides")
+                    progress_bar = st.progress(50, text="🤔 Analyzing your documents")
                     translated_doc = process_docx(uploaded_file, language)
                     progress_bar.progress(100, "All done ✅")
                     st.balloons()
