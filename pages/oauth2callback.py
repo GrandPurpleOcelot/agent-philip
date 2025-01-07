@@ -6,7 +6,7 @@ st.set_page_config(page_title="BaVista", page_icon=":memo:", layout='wide', init
 col1, col2, col3 = st.columns([1,2,1])
 with col2:
     logo_path = "bavista_logo.png"
-    st.image(logo_path, use_column_width=True)
+    st.image(logo_path, use_container_width=True)
 
 st.title('Select one of the use cases below:')
 
