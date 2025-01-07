@@ -53,7 +53,7 @@ if st.session_state['auth_token'] is None:
         col1, col2, col3 = st.columns([2,1,2])  # Adjust the ratios as needed for better alignment
         with col2:
             logo_path = "xvista_logo.png"
-            st.image(logo_path, use_column_width=True)
+            st.image(logo_path, use_container_width=True)
             st.markdown("<h3 style='text-align: center;'>Sign in</h3>", unsafe_allow_html=True)
             st.link_button("Continue with Google", auth_url, use_container_width=True, type="primary")
             st.markdown(
