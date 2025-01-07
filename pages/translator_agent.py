@@ -292,7 +292,7 @@ def main():
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         logo_path = "bavista_logo.png" 
-        st.image(logo_path, use_column_width=True) 
+        st.image(logo_path, use_container_width=True) 
 
     st.title("Agent Philip - Document Translator")
     uploaded_file = st.file_uploader("**1. Upload your Document file**", type=["pptx", "docx", "xlsx"])
